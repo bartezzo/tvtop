@@ -1,6 +1,8 @@
 package pl.tvtop
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,6 +11,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -19,8 +23,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,9 +35,17 @@ fun App() {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             var query by remember { mutableStateOf("") }
-            val groups = remember(query) {
+            var fetched by remember { mutableStateOf<List<String>?>(null) }
+            var loading by remember { mutableStateOf(false) }
+            var error by remember { mutableStateOf<String?>(null) }
+            val scope = rememberCoroutineScope()
+            val epg = remember { EpgClient() }
+            val sourceGroups = remember(fetched) {
+                fetched?.let { listOf(StationGroup("epg.ovh", it)) } ?: stationGroups
+            }
+            val groups = remember(query, sourceGroups) {
                 val seen = mutableSetOf<String>()
-                stationGroups.mapNotNull { group ->
+                sourceGroups.mapNotNull { group ->
                     val stations = group.stations.filter {
                         it.contains(query.trim(), ignoreCase = true) && seen.add(it)
                     }
@@ -39,11 +54,43 @@ fun App() {
             }
 
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                Text(
-                    "Stacje telewizyjne w Polsce",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Stacje telewizyjne w Polsce",
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (loading) {
+                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+                    }
+                    Button(
+                        enabled = !loading,
+                        onClick = {
+                            scope.launch {
+                                loading = true
+                                error = null
+                                try {
+                                    fetched = epg.fetchChannels()
+                                } catch (e: Exception) {
+                                    error = "Nie udało się pobrać listy: ${e.message ?: e::class.simpleName}"
+                                } finally {
+                                    loading = false
+                                }
+                            }
+                        }
+                    ) { Text("Refresh") }
+                }
+                error?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },

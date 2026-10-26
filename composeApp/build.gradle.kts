@@ -28,12 +28,17 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
+            implementation(libs.ktor.client.okhttp)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation(libs.ktor.client.core)
         }
     }
 }
