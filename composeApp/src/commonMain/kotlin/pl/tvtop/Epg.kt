@@ -1,6 +1,7 @@
 package pl.tvtop
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.onDownload
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
 import kotlinx.coroutines.Dispatchers
@@ -38,14 +39,38 @@ class EpgData(
 object EpgRepository {
     private val client by lazy { HttpClient() }
 
-    /** Downloads the gzipped XMLTV file, decompresses it on the fly and parses it. */
-    suspend fun load(): EpgData {
-        val bytes = client.get(EPG_URL).readRawBytes()
-        return withContext(Dispatchers.Default) {
-            val source = GzipSource(Buffer().write(bytes)).buffer()
-            parseXmlTv(source, nowMillis())
+    /**
+     * Downloads the gzipped XMLTV file, decompresses it and parses it, reporting the current
+     * stage through [onStage].
+     */
+    suspend fun load(onStage: (LoadStage) -> Unit): EpgData {
+        onStage(LoadStage.Downloading(null))
+        val bytes = client.get(EPG_URL) {
+            onDownload { received, total ->
+                val fraction = if (total != null && total > 0) {
+                    (received.toFloat() / total).coerceIn(0f, 1f)
+                } else {
+                    null
+                }
+                onStage(LoadStage.Downloading(fraction))
+            }
+        }.readRawBytes()
+
+        onStage(LoadStage.Unpacking)
+        val xml = withContext(Dispatchers.Default) {
+            Buffer().also { GzipSource(Buffer().write(bytes)).buffer().readAll(it) }
         }
+
+        onStage(LoadStage.Setting)
+        return withContext(Dispatchers.Default) { parseXmlTv(xml, nowMillis()) }
     }
+}
+
+/** Stages of [EpgRepository.load]; [Downloading.fraction] is null when the size is unknown. */
+sealed interface LoadStage {
+    data class Downloading(val fraction: Float?) : LoadStage
+    data object Unpacking : LoadStage
+    data object Setting : LoadStage
 }
 
 private const val MAX_DESCRIPTION = 400

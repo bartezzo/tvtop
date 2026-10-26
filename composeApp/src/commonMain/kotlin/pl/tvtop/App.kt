@@ -15,8 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,7 +38,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 private sealed interface EpgState {
-    data object Loading : EpgState
+    data class Loading(val stage: LoadStage = LoadStage.Downloading(null)) : EpgState
     data class Error(val message: String) : EpgState
     data class Ready(val data: EpgData) : EpgState
 }
@@ -47,7 +47,7 @@ private sealed interface EpgState {
 fun App() {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            var state by remember { mutableStateOf<EpgState>(EpgState.Loading) }
+            var state by remember { mutableStateOf<EpgState>(EpgState.Loading()) }
             var selected by remember { mutableStateOf<Channel?>(null) }
             var query by remember { mutableStateOf("") }
             val listState = rememberLazyListState()
@@ -56,10 +56,10 @@ fun App() {
 
             fun refresh() {
                 job?.cancel()
-                state = EpgState.Loading
+                state = EpgState.Loading()
                 job = scope.launch {
                     state = try {
-                        EpgState.Ready(EpgRepository.load())
+                        EpgState.Ready(EpgRepository.load { state = EpgState.Loading(it) })
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Throwable) {
@@ -94,11 +94,8 @@ fun App() {
                     }
                 }
                 when (val s = state) {
-                    EpgState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
-                            Text("Pobieranie programu TV…", modifier = Modifier.padding(top = 16.dp))
-                        }
+                    is EpgState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                        LoadingIndicator(s.stage)
                     }
                     is EpgState.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                         Text(
@@ -205,5 +202,26 @@ private fun ProgrammeScreen(channel: Channel, programmes: List<Programme>, onBac
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LoadingIndicator(stage: LoadStage) {
+    val fraction = (stage as? LoadStage.Downloading)?.fraction
+    val label = when (stage) {
+        is LoadStage.Downloading -> "Trwa pobieranie pliku…" + (fraction?.let { " ${(it * 100).toInt()}%" } ?: "")
+        LoadStage.Unpacking -> "Trwa rozpakowywanie pliku…"
+        LoadStage.Setting -> "Trwa ustawianie…"
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
+    ) {
+        if (fraction != null) {
+            LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+        } else {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        Text(label, modifier = Modifier.padding(top = 16.dp))
     }
 }
