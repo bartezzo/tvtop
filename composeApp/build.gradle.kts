@@ -40,7 +40,7 @@ kotlin {
 
 android {
     namespace = "pl.tvtop"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "pl.tvtop"
