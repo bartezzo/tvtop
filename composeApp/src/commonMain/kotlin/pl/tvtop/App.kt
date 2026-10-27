@@ -211,12 +211,13 @@ private fun ProgrammeScreen(channel: Channel, programmes: List<Programme>, onBac
 
 @Composable
 private fun LoadingIndicator(stage: LoadStage) {
-    val fraction = (stage as? LoadStage.Downloading)?.fraction
-    val label = when (stage) {
-        is LoadStage.Downloading -> "Trwa pobieranie pliku…" + (fraction?.let { " ${(it * 100).toInt()}%" } ?: "")
-        LoadStage.Unpacking -> "Trwa rozpakowywanie pliku…"
-        LoadStage.Setting -> "Trwa ustawianie…"
+    val fraction = stage.fraction
+    val name = when (stage) {
+        is LoadStage.Downloading -> "Trwa pobieranie pliku…"
+        is LoadStage.Unpacking -> "Trwa rozpakowywanie pliku…"
+        is LoadStage.Setting -> "Trwa ustawianie stacji…"
     }
+    val label = name + (fraction?.let { " ${(it * 100).toInt()}%" } ?: "")
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
