@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -53,13 +53,21 @@ fun App() {
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
             var job by remember { mutableStateOf<Job?>(null) }
+            var progress by remember { mutableStateOf<Float?>(null) }
+            var receivedBytes by remember { mutableStateOf(0L) }
+            var processing by remember { mutableStateOf(false) }
 
             fun refresh() {
                 job?.cancel()
                 state = EpgState.Loading
+                progress = null
+                receivedBytes = 0L
+                processing = false
                 job = scope.launch {
                     state = try {
-                        EpgState.Ready(EpgRepository.load())
+                        EpgState.Ready(EpgRepository.load { fraction, bytes, isProcessing ->
+                            progress = fraction; receivedBytes = bytes; processing = isProcessing
+                        })
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Throwable) {
@@ -96,8 +104,24 @@ fun App() {
                 when (val s = state) {
                     EpgState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
-                            Text("Pobieranie programu TV…", modifier = Modifier.padding(top = 16.dp))
+                            val p = progress
+                            Text(
+                                if (p != null) "${(p * 100).toInt()}%" else "0%",
+                                style = MaterialTheme.typography.displayMedium
+                            )
+                            if (p != null) {
+                                LinearProgressIndicator(progress = { p }, modifier = Modifier.width(240.dp).padding(top = 12.dp))
+                            } else {
+                                LinearProgressIndicator(modifier = Modifier.width(240.dp).padding(top = 12.dp))
+                            }
+                            Text(
+                                when {
+                                    processing -> "Przetwarzanie programu TV…"
+                                    receivedBytes > 0 -> "Pobieranie programu TV… ${receivedBytes / 1024} KB"
+                                    else -> "Pobieranie programu TV…"
+                                },
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
                         }
                     }
                     is EpgState.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) {

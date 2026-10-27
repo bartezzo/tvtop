@@ -1,12 +1,14 @@
 package pl.tvtop
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.onDownload
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.Buffer
 import okio.BufferedSource
+import okio.ForwardingSource
 import okio.GzipSource
 import okio.buffer
 
@@ -39,11 +41,42 @@ object EpgRepository {
     private val client by lazy { HttpClient() }
 
     /** Downloads the gzipped XMLTV file, decompresses it on the fly and parses it. */
-    suspend fun load(): EpgData {
-        val bytes = client.get(EPG_URL).readRawBytes()
+    /**
+     * Reports overall progress: the download is the first half, parsing the second half.
+     * When the download size is unknown, parsing alone covers the whole range.
+     */
+    suspend fun load(onProgress: (fraction: Float?, receivedBytes: Long, processing: Boolean) -> Unit = { _, _, _ -> }): EpgData {
+        var sizeKnown = false
+        val bytes = client.get(EPG_URL) {
+            onDownload { received, total ->
+                val t: Long? = total
+                sizeKnown = t != null && t > 0
+                val fraction = if (t != null && t > 0) (received.toFloat() / t).coerceIn(0f, 1f) * 0.5f else null
+                onProgress(fraction, received, false)
+            }
+        }.readRawBytes()
+        val known = if (sizeKnown) 0.5f else 0f
         return withContext(Dispatchers.Default) {
-            val source = GzipSource(Buffer().write(bytes)).buffer()
-            parseXmlTv(source, nowMillis())
+            val raw = Buffer().write(bytes)
+            val total = bytes.size.toFloat().coerceAtLeast(1f)
+            var consumed = 0L
+            var lastPercent = -1
+            val counting = object : ForwardingSource(raw) {
+                override fun read(sink: Buffer, byteCount: Long): Long {
+                    val n = super.read(sink, byteCount)
+                    if (n > 0) {
+                        consumed += n
+                        val fraction = known + (1f - known) * (consumed / total).coerceIn(0f, 1f)
+                        val percent = (fraction * 100).toInt()
+                        if (percent != lastPercent) {
+                            lastPercent = percent
+                            onProgress(fraction, bytes.size.toLong(), true)
+                        }
+                    }
+                    return n
+                }
+            }
+            parseXmlTv(GzipSource(counting.buffer()).buffer(), nowMillis())
         }
     }
 }
