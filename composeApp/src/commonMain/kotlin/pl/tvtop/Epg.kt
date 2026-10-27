@@ -40,45 +40,38 @@ class EpgData(
 object EpgRepository {
     private val client by lazy { HttpClient() }
 
-    /** Downloads the gzipped XMLTV file, decompresses it on the fly and parses it. */
     /**
-     * Reports overall progress: the download is the first half, parsing the second half.
-     * When the download size is unknown, parsing alone covers the whole range.
+     * Downloads the gzipped XMLTV file, decompresses it and parses it, reporting the current
+     * stage through [onStage].
      */
-    suspend fun load(onProgress: (fraction: Float?, receivedBytes: Long, processing: Boolean) -> Unit = { _, _, _ -> }): EpgData {
-        var sizeKnown = false
+    suspend fun load(onStage: (LoadStage) -> Unit): EpgData {
+        onStage(LoadStage.Downloading(null))
         val bytes = client.get(EPG_URL) {
             onDownload { received, total ->
-                val t: Long? = total
-                sizeKnown = t != null && t > 0
-                val fraction = if (t != null && t > 0) (received.toFloat() / t).coerceIn(0f, 1f) * 0.5f else null
-                onProgress(fraction, received, false)
+                val fraction = if (total != null && total > 0) {
+                    (received.toFloat() / total).coerceIn(0f, 1f)
+                } else {
+                    null
+                }
+                onStage(LoadStage.Downloading(fraction))
             }
         }.readRawBytes()
-        val known = if (sizeKnown) 0.5f else 0f
-        return withContext(Dispatchers.Default) {
-            val raw = Buffer().write(bytes)
-            val total = bytes.size.toFloat().coerceAtLeast(1f)
-            var consumed = 0L
-            var lastPercent = -1
-            val counting = object : ForwardingSource(raw) {
-                override fun read(sink: Buffer, byteCount: Long): Long {
-                    val n = super.read(sink, byteCount)
-                    if (n > 0) {
-                        consumed += n
-                        val fraction = known + (1f - known) * (consumed / total).coerceIn(0f, 1f)
-                        val percent = (fraction * 100).toInt()
-                        if (percent != lastPercent) {
-                            lastPercent = percent
-                            onProgress(fraction, bytes.size.toLong(), true)
-                        }
-                    }
-                    return n
-                }
-            }
-            parseXmlTv(GzipSource(counting.buffer()).buffer(), nowMillis())
+
+        onStage(LoadStage.Unpacking)
+        val xml = withContext(Dispatchers.Default) {
+            Buffer().also { GzipSource(Buffer().write(bytes)).buffer().readAll(it) }
         }
+
+        onStage(LoadStage.Setting)
+        return withContext(Dispatchers.Default) { parseXmlTv(xml, nowMillis()) }
     }
+}
+
+/** Stages of [EpgRepository.load]; [Downloading.fraction] is null when the size is unknown. */
+sealed interface LoadStage {
+    data class Downloading(val fraction: Float?) : LoadStage
+    data object Unpacking : LoadStage
+    data object Setting : LoadStage
 }
 
 private const val MAX_DESCRIPTION = 400
