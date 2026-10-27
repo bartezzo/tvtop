@@ -5,6 +5,7 @@ import io.ktor.client.plugins.onDownload
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okio.Buffer
 import okio.BufferedSource
@@ -57,26 +58,50 @@ object EpgRepository {
             }
         }.readRawBytes()
 
-        onStage(LoadStage.Unpacking)
+        onStage(LoadStage.Unpacking(0f))
         val xml = withContext(Dispatchers.Default) {
-            Buffer().also { GzipSource(Buffer().write(bytes)).buffer().readAll(it) }
+            var consumed = 0L
+            val counting = object : ForwardingSource(Buffer().write(bytes)) {
+                override fun read(sink: Buffer, byteCount: Long): Long =
+                    super.read(sink, byteCount).also { if (it > 0) consumed += it }
+            }
+            val out = Buffer()
+            val gzip = GzipSource(counting).buffer()
+            var lastPercent = 0
+            while (gzip.read(out, UNPACK_CHUNK) != -1L) {
+                ensureActive()
+                val percent = (consumed * 100 / bytes.size.coerceAtLeast(1)).toInt()
+                if (percent != lastPercent) {
+                    lastPercent = percent
+                    onStage(LoadStage.Unpacking(percent / 100f))
+                }
+            }
+            out
         }
 
-        onStage(LoadStage.Setting)
-        return withContext(Dispatchers.Default) { parseXmlTv(xml, nowMillis()) }
+        onStage(LoadStage.Setting(0f))
+        return withContext(Dispatchers.Default) {
+            parseXmlTv(xml, nowMillis()) { onStage(LoadStage.Setting(it)) }
+        }
     }
 }
 
-/** Stages of [EpgRepository.load]; [Downloading.fraction] is null when the size is unknown. */
+/** Stages of [EpgRepository.load]; every [fraction] is 0..1, null only while the download size is unknown. */
 sealed interface LoadStage {
-    data class Downloading(val fraction: Float?) : LoadStage
-    data object Unpacking : LoadStage
-    data object Setting : LoadStage
+    val fraction: Float?
+
+    data class Downloading(override val fraction: Float?) : LoadStage
+    data class Unpacking(override val fraction: Float) : LoadStage
+    data class Setting(override val fraction: Float) : LoadStage
 }
+
+private const val UNPACK_CHUNK = 64L * 1024
 
 private const val MAX_DESCRIPTION = 400
 
-internal fun parseXmlTv(source: BufferedSource, now: Long): EpgData {
+internal fun parseXmlTv(source: BufferedSource, now: Long, onProgress: ((Float) -> Unit)? = null): EpgData {
+    val total = (source as? Buffer)?.size ?: 0L
+    var lastPercent = 0
     val names = LinkedHashMap<String, String>()
     val byChannel = HashMap<String, MutableList<Programme>>()
 
@@ -91,6 +116,13 @@ internal fun parseXmlTv(source: BufferedSource, now: Long): EpgData {
 
     while (true) {
         val line = source.readUtf8Line() ?: break
+        if (onProgress != null && total > 0) {
+            val percent = ((total - (source as Buffer).size) * 100 / total).toInt()
+            if (percent != lastPercent) {
+                lastPercent = percent
+                onProgress(percent / 100f)
+            }
+        }
         val l = line.trim()
         when {
             l.startsWith("<channel ") -> channelId = attr(l, "id")
