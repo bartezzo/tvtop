@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +54,9 @@ fun App() {
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
             var job by remember { mutableStateOf<Job?>(null) }
+            var progress by remember { mutableStateOf<Float?>(null) }
+            var receivedBytes by remember { mutableStateOf(0L) }
+            var processing by remember { mutableStateOf(false) }
 
             fun refresh() {
                 job?.cancel()

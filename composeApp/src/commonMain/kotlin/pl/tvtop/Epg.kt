@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.Buffer
 import okio.BufferedSource
+import okio.ForwardingSource
 import okio.GzipSource
 import okio.buffer
 
