@@ -46,6 +46,11 @@ private sealed interface EpgState {
 
 @Composable
 fun App() {
+    WithSplash { AppContent() }
+}
+
+@Composable
+private fun AppContent() {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             var state by remember { mutableStateOf<EpgState>(EpgState.Loading()) }
