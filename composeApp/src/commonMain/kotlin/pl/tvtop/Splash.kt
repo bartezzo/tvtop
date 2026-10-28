@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -72,6 +75,14 @@ fun SplashScreen() {
                 fontWeight = FontWeight.ExtraBold,
             )
         }
+    }
+}
+
+/** The app icon: the television on a dark rounded tile, so it stays visible on light surfaces. */
+@Composable
+fun AppIcon(modifier: Modifier = Modifier) {
+    Box(modifier.clip(RoundedCornerShape(22)).background(SplashBg)) {
+        TvLogo(Modifier.fillMaxSize().padding(2.dp))
     }
 }
 
