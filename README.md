@@ -1,5 +1,7 @@
 # tvtop
 
+<p align="center"><img src="assets/logo.png" alt="tvtop" width="420"></p>
+
 Aplikacja Compose Multiplatform na Androida i iOS.
 
 ## Struktura
