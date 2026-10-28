@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1B1F4B"/>
+      <stop offset="1" stop-color="#0B0D24"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.55" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#D946EF"/>
+    </linearGradient>
+    <linearGradient id="txt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#D946EF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="512" rx="112" fill="url(#bg)"/>
+  <g transform="translate(40 0)">
+    <path d="M196 150 L256 100 L316 150" fill="none" stroke="#F8FAFC" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="256" cy="100" r="12" fill="#22D3EE"/>
+    <rect x="86" y="150" width="340" height="236" rx="40" fill="#F8FAFC"/>
+    <rect x="108" y="172" width="296" height="192" rx="24" fill="url(#screen)"/>
+    <path d="M108 250 Q 200 200 404 232 L404 340 a24 24 0 0 1 -24 24 L132 364 a24 24 0 0 1 -24 -24 Z" fill="#fff" opacity="0.10"/>
+    <path d="M232 214 L232 322 L316 268 Z" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
+    <rect x="176" y="398" width="160" height="16" rx="8" fill="#F8FAFC"/>
+    <rect x="236" y="384" width="40" height="18" fill="#F8FAFC"/>
+  </g>
+  <text x="520" y="318" font-family="Poppins, 'Montserrat', 'Helvetica Neue', Arial, sans-serif" font-size="210" font-weight="800" letter-spacing="-4">
+    <tspan fill="#F8FAFC">tv</tspan><tspan fill="url(#txt)">top</tspan>
+  </text>
+</svg>
