@@ -52,7 +52,8 @@ android {
         applicationId = "pl.tvtop"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
+        // CI ustawia VERSION_CODE (numer buildu), żeby każda dystrybucja miała wyższy kod wersji.
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = "1.0"
     }
     packaging {
@@ -60,9 +61,25 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    // Podpis release z zmiennych środowiskowych (sekrety w GitHub Actions).
+    // Bez nich build release pozostaje niepodpisany, jak dotychczas.
+    val releaseKeystore = System.getenv("ANDROID_KEYSTORE_FILE")
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            if (releaseKeystore != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
